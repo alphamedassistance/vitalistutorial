@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vitalis ver. 1.0 - Tutorial Series</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400&display=swap');
+
+        :root {
+            --primary-color: #00f3ff;
+            --secondary-color: #bc13fe;
+            --bg-color: #050510;
+            --glass-bg: rgba(10, 15, 30, 0.75);
+            --glass-border: rgba(0, 243, 255, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #fff;
+            font-family: 'Roboto', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 3D Canvas Background */
+        #canvas-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at center, #0b1026 0%, #000000 100%);
+        }
+
+        /* === APP CONTAINER (Set to relative and fixed height to lock layout) === */
+        .app-container {
+            width: 100%;
+            max-width: 900px;
+            padding: 20px;
+            z-index: 1;
+            perspective: 1000px;
+            position: relative; /* Mandatory for absolute children */
+            /* Height is defined by the fixed content + padding/margin, 
+               preventing layout jump during slide transition */
+            min-height: 480px; 
+            padding-top: 50px; /* Space for the progress bar */
+        }
+
+        /* Progress Indicator */
+        .progress-bar {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            position: absolute; /* Place progress bar on top, outside the slide area */
+            width: 100%;
+            top: 15px;
+            left: 0;
+        }
+
+        .progress-dot {
+            width: 40px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+
+        .progress-dot.active {
+            background: var(--primary-color);
+            box-shadow: 0 0 10px var(--primary-color);
+        }
+        
+        /* === SLIDE CONTAINER (Absolute positioning to prevent layout shift) === */
+        .slide-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 40px 30px;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.15), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            
+            /* Core fix: Absolute positioning, stretching to fill the parent */
+            position: absolute;
+            top: 50px; /* Below the progress bar */
+            left: 20px;
+            right: 20px;
+            bottom: 20px;
+
+            /* Transition and Hiding */
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.4, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.4, 1);
+            opacity: 0;
+            transform: translateY(15px);
+            pointer-events: none; /* Crucial: make non-active slides unclickable */
+            
+            /* Flexbox setup for vertical centering of button */
+            flex-direction: column;
+            display: flex; /* Always display flex so layout is ready to transition */
+        }
+
+        /* Active Slide State */
+        .slide-container.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto; /* Make active slide clickable */
+            z-index: 10; /* Ensure active slide is on top */
+        }
+
+        /* Decorative Tech Elements */
+        .tech-decoration {
+            position: absolute;
+            background: var(--primary-color);
+        }
+        .tech-corner-tl { top: 0; left: 0; width: 20px; height: 2px; box-shadow: 0 0 5px var(--primary-color); }
+        .tech-corner-br { bottom: 0; right: 0; width: 20px; height: 2px; box-shadow: 0 0 5px var(--primary-color); }
+
+        /* Header Styles */
+        header {
+            text-align: center;
+            flex-shrink: 0;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--primary-color), #fff, var(--secondary-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+        }
+
+        .subtitle {
+            color: #aaa;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* REPLACEMENT LINK STYLE - CENTERED */
+        .video-link-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            flex-grow: 1; /* Pushes the link to the vertical center */
+        }
+
+        .watch-link {
+            color: var(--primary-color);
+            font-family: 'Orbitron', sans-serif;
+            text-decoration: none;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: 2px solid var(--primary-color);
+            padding: 15px 30px;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            background: transparent; 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .watch-link svg {
+            fill: var(--primary-color);
+            transition: 0.3s;
+        }
+
+        .watch-link:hover {
+            background: var(--primary-color);
+            color: #000;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        .watch-link:hover svg {
+            fill: #000;
+        }
+
+        /* Navigation Controls */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            width: 100%;
+            flex-shrink: 0; /* Don't shrink */
+            margin-top: auto; /* Pushes controls to the bottom */
+            padding-top: 20px;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        /* Button Styles */
+        .btn {
+            position: relative;
+            padding: 12px 30px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--primary-color);
+            background: rgba(0, 243, 255, 0.05);
+            border: 1px solid var(--primary-color);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            letter-spacing: 1px;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.2), transparent);
+            transition: 0.5s;
+        }
+
+        .btn:hover {
+            background: rgba(0, 243, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+            text-shadow: 0 0 8px var(--primary-color);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Responsive Typography */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.5rem; }
+            .app-container { padding: 10px; min-height: 400px; padding-top: 40px; }
+            .slide-container { padding: 20px; top: 40px; left: 10px; right: 10px; bottom: 10px; }
+            .btn { padding: 10px 20px; min-width: 100px; font-size: 0.8rem; }
+            .watch-link { font-size: 0.9rem; padding: 15px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Background Canvas -->
+    <canvas id="canvas-bg"></canvas>
+
+    <!-- Main Content -->
+    <div class="app-container" id="app-container">
+        <!-- Progress Indicators (Now positioned absolutely at the top) -->
+        <div class="progress-bar">
+            <div class="progress-dot" id="dot1"></div>
+            <div class="progress-dot" id="dot2"></div>
+            <div class="progress-dot" id="dot3"></div>
+        </div>
+
+        <!-- Part 1 -->
+        <div class="slide-container" id="slide1">
+            <div class="tech-decoration tech-corner-tl"></div>
+            <div class="tech-decoration tech-corner-br"></div>
+
+            <header>
+                <h1>Vitalis ver. 1.0</h1>
+                <div class="subtitle">Tutorial Part 1: Introduction</div>
+            </header>
+
+            <!-- CENTERED BUTTON LINK -->
+            <div class="video-link-container">
+                <a href="https://youtu.be/aIAoJ4_FmIU" target="_blank" class="watch-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" width="24" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Trouble playing? Watch on YouTube
+                </a>
+            </div>
+
+            <div class="controls">
+                <div class="spacer"></div>
+                <button class="btn" onclick="showSlide(2)">Next &gt;</button>
+            </div>
+        </div>
+
+        <!-- Part 2 -->
+        <div class="slide-container" id="slide2">
+            <div class="tech-decoration tech-corner-tl"></div>
+            <div class="tech-decoration tech-corner-br"></div>
+
+            <header>
+                <h1>Vitalis ver. 1.0</h1>
+                <div class="subtitle">Tutorial Part 2: Core Features</div>
+            </header>
+
+            <!-- CENTERED BUTTON LINK -->
+            <div class="video-link-container">
+                <a href="https://youtu.be/QGpF-3iUd1I" target="_blank" class="watch-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" width="24" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Trouble playing? Watch on YouTube
+                </a>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="showSlide(1)">&lt; Previous</button>
+                <button class="btn" onclick="showSlide(3)">Next &gt;</button>
+            </div>
+        </div>
+
+        <!-- Part 3 -->
+        <div class="slide-container" id="slide3">
+            <div class="tech-decoration tech-corner-tl"></div>
+            <div class="tech-decoration tech-corner-br"></div>
+
+            <header>
+                <h1>Vitalis ver. 1.0</h1>
+                <div class="subtitle">Tutorial Part 3: Advanced Usage</div>
+            </header>
+
+            <!-- CENTERED BUTTON LINK -->
+            <div class="video-link-container">
+                <a href="https://youtu.be/HxKmyYriU6A" target="_blank" class="watch-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" width="24" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Trouble playing? Watch on YouTube
+                </a>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="showSlide(2)">&lt; Previous</button>
+                <button class="btn" onclick="showSlide(1)">Back to Start</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === NAVIGATION LOGIC ===
+        function showSlide(slideNumber) {
+            // Deactivate all slides
+            document.querySelectorAll('.slide-container').forEach(slide => {
+                slide.classList.remove('active');
+            });
+            
+            // Deactivate all dots
+            document.querySelectorAll('.progress-dot').forEach(dot => {
+                dot.classList.remove('active');
+            });
+
+            // Activate selected slide
+            const selectedSlide = document.getElementById(`slide${slideNumber}`);
+            if (selectedSlide) {
+                // Since display: flex is now permanent (CSS changed), we just add the active class
+                // The transition starts immediately, and the absolute positioning prevents layout shift.
+                selectedSlide.classList.add('active');
+            }
+
+            // Activate selected dot
+            const selectedDot = document.getElementById(`dot${slideNumber}`);
+            if (selectedDot) {
+                selectedDot.classList.add('active');
+            }
+        }
+
+        // Initialize first slide correctly
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simulan ang app sa slide 1
+            showSlide(1);
+        });
+
+        // === 3D BACKGROUND ANIMATION (No changes here) ===
+        const canvas = document.getElementById('canvas-bg');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let particles = [];
+        const particleCount = 60;
+        const connectionDistance = 150;
+        const rotationSpeed = 0.001;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        class Point3D {
+            constructor() {
+                this.x = (Math.random() - 0.5) * width;
+                this.y = (Math.random() - 0.5) * height;
+                this.z = (Math.random() - 0.5) * width;
+            }
+
+            move() {
+                const cos = Math.cos(rotationSpeed);
+                const sin = Math.sin(rotationSpeed);
+                const x = this.x * cos - this.z * sin;
+                const z = this.z * cos + this.x * sin;
+                this.x = x;
+                this.z = z;
+
+                const cosX = Math.cos(rotationSpeed * 0.5);
+                const sinX = Math.sin(rotationSpeed * 0.5);
+                const y = this.y * cosX - this.z * sinX;
+                const z2 = this.z * cosX + this.y * sinX;
+                this.y = y;
+                this.z = z2;
+            }
+
+            project() {
+                const fov = 600; 
+                const scale = fov / (fov + this.z); 
+                return {
+                    x: (this.x * scale) + width / 2,
+                    y: (this.y * scale) + height / 2,
+                    scale: scale,
+                    alpha: (scale - 0.5)
+                };
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Point3D());
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            particles.forEach(p => p.move());
+            const projectedPoints = particles.map(p => p.project());
+
+            ctx.lineWidth = 1;
+            for (let i = 0; i < projectedPoints.length; i++) {
+                for (let j = i + 1; j < projectedPoints.length; j++) {
+                    const p1 = projectedPoints[i];
+                    const p2 = projectedPoints[j];
+                    const dx = p1.x - p2.x;
+                    const dy = p1.y - p2.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < connectionDistance) {
+                        const opacity = (1 - dist / connectionDistance) * p1.alpha * p2.alpha * 0.5;
+                        if (opacity > 0) {
+                            ctx.strokeStyle = `rgba(0, 243, 255, ${opacity})`;
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            projectedPoints.forEach(p => {
+                if (p.alpha > 0) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 2 * p.scale, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = `rgba(0, 243, 255, ${p.alpha * 0.5})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 6 * p.scale, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+        initParticles();
+        draw();
+    </script>
+</body>
+</html>
